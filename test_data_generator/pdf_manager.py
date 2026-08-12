@@ -2,7 +2,7 @@ import fitz
 import io
 
 def replace_text_in_pdf(pdf_bytes: bytes, replacements: dict) -> bytes:
-    """
+    """ 
     Replaces text in a PDF by redacting the old text and inserting the new text.
     """
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -16,25 +16,17 @@ def replace_text_in_pdf(pdf_bytes: bytes, replacements: dict) -> bytes:
             text_instances = page.search_for(old_text)
             
             for inst in text_instances:
-                # Estimate font size based on the bounding box height
                 fontsize = (inst.y1 - inst.y0) * 0.8
                 
-                # We need to slightly inflate the rect to ensure complete redaction sometimes
-                # But PyMuPDF search_for usually gives a good rect.
-                
-                # Add redaction annotation
-                # cross_out=False so it doesn't draw a cross, just fills the area (default is red, we want white or transparent, 
-                # but fill=(1,1,1) is white. PyMuPDF apply_redactions usually removes the text under the annot).
                 page.add_redact_annot(
                     inst, 
                     text=new_text, 
                     fontname="helv", 
                     fontsize=fontsize, 
                     text_color=(0, 0, 0),
-                    fill=(1, 1, 1) # White background to cover old text traces if any
+                    fill=(1, 1, 1)
                 )
-        
-        # Apply all redactions on the page
+
         page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
         
     out_pdf = io.BytesIO()    
