@@ -3,18 +3,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const addRowBtn = editorForm.querySelector('.add-row-btn');
     const rowsContainer = editorForm.querySelector('.replacement-rows');
     const editorSubmitBtn = document.getElementById('editor-submit-btn');
-    
+
     const successStage = document.getElementById('success-stage');
     const btnDownloadEdited = document.getElementById('btn-download-edited');
     const scannerForm = document.getElementById('scanner-form');
     const converterSubmitBtn = document.getElementById('converter-submit-btn');
-    
+
     // Combiner Elements
     const combineFileInput = document.getElementById('combine-file-input');
     const combineFileList = document.getElementById('combine-file-list');
     const combineSubmitBtn = document.getElementById('combine-submit-btn');
     const combinerForm = document.getElementById('combiner-form');
-    
+
     let editedPdfBlob = null;
     let originalFilename = '';
 
@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', () => {
             tabBtns.forEach(b => b.classList.remove('active'));
             tabContents.forEach(c => c.classList.add('hidden'));
-            
+
             btn.classList.add('active');
             document.getElementById(btn.dataset.target).classList.remove('hidden');
         });
@@ -57,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (fileInput.files.length) {
             fileName.textContent = fileInput.files[0].name;
             dropZone.style.borderColor = 'var(--primary)';
-            // Hide success stage if they upload a new file
             successStage.classList.add('hidden');
             editorSubmitBtn.parentElement.classList.remove('hidden');
         }
@@ -85,8 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const oldTexts = editorForm.querySelectorAll('.old-text');
         const newTexts = editorForm.querySelectorAll('.new-text');
         const rep = {};
-        for(let i=0; i<oldTexts.length; i++){
-            if(oldTexts[i].value) rep[oldTexts[i].value] = newTexts[i].value;
+        for (let i = 0; i < oldTexts.length; i++) {
+            if (oldTexts[i].value) rep[oldTexts[i].value] = newTexts[i].value;
         }
 
         setLoading(editorSubmitBtn, true);
@@ -100,11 +99,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/replace', { method: 'POST', body: formData });
             if (!res.ok) throw new Error('Request failed');
             editedPdfBlob = await res.blob();
-            
-            // Show success stage
             editorSubmitBtn.parentElement.classList.add('hidden');
             successStage.classList.remove('hidden');
-            
+
         } catch (e) {
             alert('Error: ' + e.message);
         } finally {
@@ -114,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Download Clean Edited PDF
     btnDownloadEdited.addEventListener('click', () => {
-        if(editedPdfBlob) {
+        if (editedPdfBlob) {
             downloadBlob(editedPdfBlob, originalFilename.replace('.pdf', '_edited.pdf'));
         }
     });
@@ -123,8 +120,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('input[type="range"]').forEach(slider => {
         slider.addEventListener('input', (e) => {
             let suffix = '';
-            if(e.target.name === 'skew_angle') suffix = '°';
-            else if(e.target.name === 'blur_strength') suffix = ' px';
+            if (e.target.name === 'skew_angle') suffix = '°';
+            else if (e.target.name === 'blur_strength') suffix = ' px';
             e.target.nextElementSibling.textContent = e.target.value + suffix;
         });
     });
@@ -132,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Toggle Image upload
     document.getElementById('add-image-cb').addEventListener('change', (e) => {
         const container = document.getElementById('image-upload-container');
-        if(e.target.checked) container.classList.remove('hidden');
+        if (e.target.checked) container.classList.remove('hidden');
         else container.classList.add('hidden');
     });
 
@@ -150,11 +147,10 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('blur', scannerForm.querySelector('[name="blur"]').checked);
         formData.append('noise', scannerForm.querySelector('[name="noise"]').checked);
         formData.append('low_dpi', scannerForm.querySelector('[name="low_dpi"]').checked);
-        
         formData.append('skew_angle', scannerForm.querySelector('[name="skew_angle"]').value);
         formData.append('blur_strength', scannerForm.querySelector('[name="blur_strength"]').value);
         formData.append('noise_intensity', scannerForm.querySelector('[name="noise_intensity"]').value);
-        
+
         const imgInput = scannerForm.querySelector('.image-file');
         if (scannerForm.querySelector('[name="add_image"]').checked && imgInput.files.length) {
             formData.append('overlay_image', imgInput.files[0]);
@@ -172,59 +168,129 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Combiner Logic
     let combineFiles = [];
+    let combineSegments = [];
+
     const combineUploadZone = document.getElementById('combine-upload-zone');
-    
     combineUploadZone.addEventListener('click', () => combineFileInput.click());
-    
+
     combineFileInput.addEventListener('change', (e) => {
         combineFiles = Array.from(e.target.files);
-        updateCombineFileList();
+        combineSegments = combineFiles.map((_, i) => ({ origIdx: i, pageSpec: 'all' }));
+        renderFileCards();
     });
-    
-    function updateCombineFileList() {
-        if(combineFiles.length > 0) {
-            combineFileList.classList.remove('hidden');
-            combineSubmitBtn.disabled = false;
-            
-            combineFileList.innerHTML = combineFiles.map(file => `
-                <div class="file-list-item">
-                    <span class="file-list-name">📄 ${file.name}</span>
-                    <span class="file-list-size">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                </div>
-            `).join('');
-        } else {
+
+
+    function saveCurrentSpecs() {
+        combineFileList.querySelectorAll('.page-range-input').forEach((input, i) => {
+            if (combineSegments[i]) combineSegments[i].pageSpec = input.value.trim() || 'all';
+        });
+    }
+
+    function renderFileCards() {
+        if (combineFiles.length === 0) {
             combineFileList.classList.add('hidden');
             combineSubmitBtn.disabled = true;
             combineFileList.innerHTML = '';
+            return;
         }
+        combineFileList.classList.remove('hidden');
+        combineSubmitBtn.disabled = false;
+
+        const last = combineSegments.length - 1;
+        combineFileList.innerHTML = combineSegments.map(({ origIdx, pageSpec }, pos) => {
+            const file = combineFiles[origIdx];
+            const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+            return `
+            <div class="file-card" data-pos="${pos}">
+                <div class="file-card-header">
+                    <span class="file-card-name">📄 ${file.name}</span>
+                    <span class="file-card-size">${sizeMB} MB</span>
+                    <div class="reorder-btns">
+                        <button type="button" class="reorder-btn" title="Move up"
+                            onclick="combineMove(${pos},-1)" ${pos === 0 ? 'disabled' : ''}>↑</button>
+                        <button type="button" class="reorder-btn" title="Move down"
+                            onclick="combineMove(${pos}, 1)" ${pos === last ? 'disabled' : ''}>↓</button>
+                        <button type="button" class="reorder-btn" title="Duplicate this segment"
+                            onclick="combineDuplicate(${pos})">⧉ Dup</button>
+                        <button type="button" class="reorder-btn" title="Preview PDF"
+                            onclick="combinePreview(${origIdx})">👁 Preview</button>
+                        <button type="button" class="reorder-btn reorder-btn--danger" title="Remove"
+                            onclick="combineRemove(${pos})">✕</button>
+                    </div>
+                </div>
+                <div class="page-range-row">
+                    <span class="page-range-label">Pages:</span>
+                    <input type="text" class="page-range-input" placeholder="all"
+                           value="${pageSpec}" title="e.g. 1-3, 5, 7-9">
+                    <span class="page-range-hint">e.g. 1-3, 5</span>
+                </div>
+            </div>`;
+        }).join('');
     }
-    
+
+    window.combineMove = function (pos, dir) {
+        saveCurrentSpecs();
+        const np = pos + dir;
+        if (np < 0 || np >= combineSegments.length) return;
+        [combineSegments[pos], combineSegments[np]] = [combineSegments[np], combineSegments[pos]];
+        renderFileCards();
+    };
+
+    window.combineDuplicate = function (pos) {
+        saveCurrentSpecs();
+        const copy = { ...combineSegments[pos] };   // shallow copy – same origIdx, same pageSpec
+        combineSegments.splice(pos + 1, 0, copy);
+        renderFileCards();
+    };
+
+    window.combineRemove = function (pos) {
+        saveCurrentSpecs();
+        combineSegments.splice(pos, 1);
+        renderFileCards();
+    };
+
+    window.combinePreview = function (origIdx) {
+        const file = combineFiles[origIdx];
+        if (!file) return;
+        const blobUrl = URL.createObjectURL(file);
+        const modal = document.getElementById('preview-modal');
+        const iframe = document.getElementById('preview-iframe');
+        const title = document.getElementById('preview-title');
+        iframe.src = blobUrl;
+        title.textContent = file.name;
+        modal.classList.remove('hidden');
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    };
+
+    document.getElementById('preview-close').addEventListener('click', () => {
+        const modal = document.getElementById('preview-modal');
+        const iframe = document.getElementById('preview-iframe');
+        iframe.src = '';
+        modal.classList.add('hidden');
+    });
     combinerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if(combineFiles.length === 0) return;
-        
+        if (combineFiles.length === 0 || combineSegments.length === 0) return;
+
+        saveCurrentSpecs();
         setLoading(combineSubmitBtn, true);
-        
+
+        const fileOrder = combineSegments.map(s => s.origIdx);
+        const pageSpecs = combineSegments.map(s => s.pageSpec);
+
         const formData = new FormData();
-        combineFiles.forEach(file => {
-            formData.append('files', file);
-        });
-        
+        combineFiles.forEach(file => formData.append('files', file));
+        formData.append('file_order', JSON.stringify(fileOrder));
+        formData.append('page_specs', JSON.stringify(pageSpecs));
+
         try {
             const res = await fetch('/api/combine', { method: 'POST', body: formData });
-            
             if (!res.ok) {
-                const errData = await res.json();
-                throw new Error(errData.detail || 'Request failed');
+                const err = await res.json();
+                throw new Error(err.detail || 'Request failed');
             }
-            
-            const blob = await res.blob();
-            downloadBlob(blob, "combined_document.pdf");
-            
-            alert('PDFs combined successfully!');
-            
+            downloadBlob(await res.blob(), 'combined_document.pdf');
         } catch (error) {
             console.error('Combine error:', error);
             alert('Error combining PDFs: ' + error.message);
@@ -234,10 +300,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Helpers
-    function setLoading(btn, isLoading, text='') {
+    function setLoading(btn, isLoading, text = '') {
         const span = btn.querySelector('.btn-text');
         const spin = btn.querySelector('.spinner');
-        if(isLoading) {
+        if (isLoading) {
             span.textContent = 'Processing...';
             spin.classList.remove('hidden');
             btn.disabled = true;

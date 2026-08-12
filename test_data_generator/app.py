@@ -12,7 +12,7 @@ app = FastAPI(title="PDF Text Replacer API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allow Vite frontend
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -78,14 +78,26 @@ async def api_simulate_scan(
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/combine")
-async def api_combine(files: List[UploadFile] = File(...)):
+async def api_combine(
+    files: List[UploadFile] = File(...),
+    page_specs: str = Form("[]"), 
+    file_order: str = Form("[]")
+):
     try:
         pdf_bytes_list = []
         for file in files:
             pdf_bytes = await file.read()
             pdf_bytes_list.append(pdf_bytes)
+        
+        specs = json.loads(page_specs)
+        order = json.loads(file_order)
+
+        if not specs:
+            specs = ["all"] * len(pdf_bytes_list)
+        if not order:
+            order = list(range(len(pdf_bytes_list)))
             
-        combined_pdf_bytes = combine_pdfs(pdf_bytes_list)
+        combined_pdf_bytes = combine_pdfs(pdf_bytes_list, page_specs=specs, file_order=order)
         
         return Response(
             content=combined_pdf_bytes,
