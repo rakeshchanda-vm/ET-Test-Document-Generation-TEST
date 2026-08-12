@@ -1,27 +1,26 @@
 # PDF Test Data Generator
 
-A powerful web-based tool to create realistic test documents for **Intelligent Document Processing (IDP)** AI systems. Generate, degrade, and combine PDFs with full control — all from a clean browser interface.
+A powerful web-based tool to create realistic test documents for **Intelligent Document Processing (IDP)** AI systems. Generate, degrade, and combine PDFs with full control -all from a clean browser interface.
 
 ---
 
 ## Features
 
-### 🔁 Generator & Converter
-- **Text Replacer** — Upload any digital PDF and replace specific text values (names, claim numbers, dates, policy numbers, etc.) with new values using a simple find-and-replace UI.
-- **Scanner Simulator (Converter)** — Apply realistic scan degradations to the edited PDF to simulate physical scanned documents:
-  - **Skew** — Random rotation with adjustable angle (0.5° – 5°)
-  - **Blur** — Gaussian blur with adjustable strength (1px – 15px)
-  - **Noise** — ISO sensor noise with adjustable intensity (5 – 50)
-  - **Low DPI** — Downscale and re-upscale to simulate cheap scanner hardware
-  - **Image Overlay** — Stamp a custom image (signature, logo, seal) onto the PDF before degrading
+### Generator & Converter
+- **Text Replacer** - Upload any digital PDF and replace specific text values (names, claim numbers, dates, policy numbers, etc.) with new values using a simple find-and-replace UI.
+- **Scanner Simulator (Converter)** - Apply realistic scan degradations to the edited PDF to simulate physical scanned documents:
+  - **Skew** - Random rotation with adjustable angle (0.5°- 5°)
+  - **Blur** - Gaussian blur with adjustable strength (1px-15px)
+  - **Noise** - ISO sensor noise with adjustable intensity (5- 50)
+  - **Low DPI** - Downscale and re-upscale to simulate cheap scanner hardware
 
-### 📄 Combiner Utility
+### Combiner Utility
 - Upload multiple PDFs and combine them into a single document.
-- **Page Range Selection** — Choose specific pages per file (e.g., `1-3, 5, 7-9`). Leave blank or type `all` to include all pages.
-- **Duplicate Segments** — Add the same PDF multiple times with different page ranges for each occurrence.
-- **Reorder Cards** — Use ↑ / ↓ buttons to arrange the combine order before merging.
-- **Remove Segments** — Remove any card from the combine queue.
-- **PDF Preview** — Click "👁 Preview" on any card to open the full PDF in a modal viewer before combining.
+- **Page Range Selection** - Choose specific pages per file (e.g., `1-3, 5, 7-9`). Leave blank or type `all` to include all pages.
+- **Duplicate Segments** - Add the same PDF multiple times with different page ranges for each occurrence.
+- **Reorder Cards** - Use ↑ / ↓ buttons to arrange the combine order before merging.
+- **Remove Segments** - Remove any card from the combine queue.
+- **PDF Preview** - Click "Preview" on any card to open the full PDF in a modal viewer before combining.
 
 ---
 
@@ -30,7 +29,7 @@ A powerful web-based tool to create realistic test documents for **Intelligent D
 | Layer | Technology |
 |---|---|
 | Backend | Python 3.10+, FastAPI, Uvicorn |
-| PDF Processing | PyMuPDF (fitz) |
+| PDF Processing | PyMuPDF |
 | Image Processing | OpenCV (`opencv-python-headless`), NumPy |
 | Frontend | HTML5, Vanilla CSS, Vanilla JavaScript |
 
@@ -57,6 +56,10 @@ pip install -r requirements.txt
 ```bash
 uvicorn app:app --reload
 ```
+or
+```bash
+python app.py
+```
 
 ### 4. Open in browser
 
@@ -70,11 +73,10 @@ http://localhost:8000
 
 ```
 test-data/
-├── render.yaml                   # Render.com deployment config
 ├── test_data_generator/
 │   ├── app.py                    # FastAPI backend (all API endpoints)
 │   ├── pdf_manager.py            # PDF text replacement & combining logic
-│   ├── scanner_simulator.py      # OpenCV-based scan degradation engine
+│   ├── scanner_simulator.py      # scan degradation engine
 │   ├── requirements.txt          # Python dependencies
 │   └── frontend/
 │       ├── index.html            # Main UI
@@ -94,23 +96,3 @@ test-data/
 
 ---
 
-## Deployment (Free — Render.com)
-
-This project includes a `render.yaml` for one-click deployment via [Render Blueprints](https://render.com/docs/blueprints).
-
-1. Push this repository to GitHub.
-2. Go to [Render.com](https://render.com) → **New +** → **Blueprint**.
-3. Connect your GitHub repo.
-4. Render reads `render.yaml` and configures everything automatically.
-5. Click **Apply** — your app goes live in ~2 minutes.
-
-> **Note:** Render's free tier spins down after 15 minutes of inactivity. The first request after a break may take ~30 seconds to wake up.
-
----
-
-## License
-
-This project uses [PyMuPDF](https://pymupdf.readthedocs.io/), which is licensed under **AGPL-3.0**.  
-This project is therefore also licensed under the **GNU Affero General Public License v3.0**.
-
-See the [full license text](https://www.gnu.org/licenses/agpl-3.0.txt) for details.
