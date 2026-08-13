@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Test Data Generator</title>
+    <title>PDF Test Data Manipulator</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -17,7 +17,7 @@
 
     <div class="container">
         <header>
-            <h1><span class="gradient-text">Test Data</span> Generator</h1>
+            <h1><span class="gradient-text">Test Data</span> Manipulator</h1>
             <p>Replace text in digital PDFs and optionally apply scanned effects.</p>
         </header>
 
@@ -58,6 +58,7 @@
                                         d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
                                 </svg>
                                 <input type="text" class="new-text" placeholder="New Text" required>
+                                <button type="button" class="btn-remove-row" title="Remove row">✕</button>
                             </div>
                         </div>
                         <button type="button" class="btn-secondary add-row-btn">+ Add Row</button>
@@ -67,6 +68,9 @@
                         <button type="submit" class="btn-primary" id="editor-submit-btn">
                             <span class="btn-text">Replace Text</span>
                             <div class="spinner hidden"></div>
+                        </button>
+                        <button type="button" class="btn-primary" id="skip-to-scanner-btn">
+                            Skip to Scanner
                         </button>
                     </div>
                 </form>
@@ -185,7 +189,7 @@
                         <h3>Click to Select PDFs</h3>
                         <p style="color: var(--text-muted); font-size: 0.9rem;">Hold Ctrl/Cmd to select multiple files
                         </p>
-                        <input type="file" id="combine-file-input" accept=".pdf" multiple class="file-input" hidden>
+                        <input type="file" id="combine-file-input" accept=".pdf,image/*" multiple class="file-input" hidden>
                     </div>
 
                     <div id="combine-file-list" class="file-list hidden">

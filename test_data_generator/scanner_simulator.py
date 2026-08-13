@@ -58,10 +58,10 @@ def simulate_scan(
         degraded = apply_degradations(img_array, skew, blur, noise, low_dpi, skew_angle, blur_strength, noise_intensity)
 
         _, img_encoded = cv2.imencode('.png', degraded)
-        new_pix = fitz.Pixmap(img_encoded.tobytes())
+        img_bytes = img_encoded.tobytes()
         
         new_page = out_doc.new_page(width=page.rect.width, height=page.rect.height)
-        new_page.insert_image(new_page.rect, pixmap=new_pix)
+        new_page.insert_image(new_page.rect, stream=img_bytes)
         
     out_pdf = io.BytesIO()
     out_doc.save(out_pdf, garbage=4, deflate=True)

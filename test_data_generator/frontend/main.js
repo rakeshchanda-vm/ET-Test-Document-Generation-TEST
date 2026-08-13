@@ -59,6 +59,8 @@ document.addEventListener('DOMContentLoaded', () => {
             dropZone.style.borderColor = 'var(--primary)';
             successStage.classList.add('hidden');
             editorSubmitBtn.parentElement.classList.remove('hidden');
+            const successHeader = successStage.querySelector('.success-header h3');
+            successHeader.textContent = 'Text Replaced Successfully!';
         }
     }
 
@@ -70,8 +72,22 @@ document.addEventListener('DOMContentLoaded', () => {
             <input type="text" class="old-text" placeholder="Target Text" required>
             <svg class="arrow-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
             <input type="text" class="new-text" placeholder="New Text" required>
+            <button type="button" class="btn-remove-row" title="Remove row">✕</button>
         `;
         rowsContainer.appendChild(row);
+    });
+
+    // Remove Row Handler
+    rowsContainer.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-remove-row')) {
+            const row = e.target.closest('.replacement-row');
+            const allRows = rowsContainer.querySelectorAll('.replacement-row');
+            if (allRows.length > 1) {
+                row.remove();
+            } else {
+                row.querySelectorAll('input').forEach(input => input.value = '');
+            }
+        }
     });
 
     // Submit Replace
@@ -97,9 +113,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const res = await fetch('/api/replace', { method: 'POST', body: formData });
-            if (!res.ok) throw new Error('Request failed');
+            if (!res.ok) {
+                let errMsg = `HTTP ${res.status}`;
+                try { const j = await res.json(); errMsg = j.detail || JSON.stringify(j); } catch {}
+                throw new Error(errMsg);
+            }
             editedPdfBlob = await res.blob();
             editorSubmitBtn.parentElement.classList.add('hidden');
+
+            const successHeader = successStage.querySelector('.success-header h3');
+            successHeader.textContent = 'Text Replaced Successfully!';
             successStage.classList.remove('hidden');
 
         } catch (e) {
@@ -114,6 +137,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editedPdfBlob) {
             downloadBlob(editedPdfBlob, originalFilename.replace('.pdf', '_edited.pdf'));
         }
+    });
+
+    // Skip to Scanner - use original PDF
+    const skipToScannerBtn = document.getElementById('skip-to-scanner-btn');
+    skipToScannerBtn.addEventListener('click', async () => {
+        if (!fileInput.files.length) {
+            alert('Upload a PDF first');
+            return;
+        }
+
+        originalFilename = fileInput.files[0].name;
+        editedPdfBlob = await fileInput.files[0].arrayBuffer().then(buf => new Blob([buf], { type: 'application/pdf' }));
+
+        editorSubmitBtn.parentElement.classList.add('hidden');
+        successStage.classList.remove('hidden');
+
+        const successHeader = successStage.querySelector('.success-header h3');
+        successHeader.textContent = 'Ready to Convert to Scanned PDF';
     });
 
     // Slider value updates
@@ -141,7 +182,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setLoading(converterSubmitBtn, true);
 
         const formData = new FormData();
-        // Send the edited PDF blob, not the original file!
         formData.append('file', editedPdfBlob, originalFilename);
         formData.append('skew', scannerForm.querySelector('[name="skew"]').checked);
         formData.append('blur', scannerForm.querySelector('[name="blur"]').checked);
@@ -158,7 +198,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const res = await fetch('/api/simulate-scan', { method: 'POST', body: formData });
-            if (!res.ok) throw new Error('Request failed');
+            if (!res.ok) {
+                let errMsg = `HTTP ${res.status}`;
+                try { const j = await res.json(); errMsg = j.detail || JSON.stringify(j); } catch {}
+                throw new Error(errMsg);
+            }
             const scannedBlob = await res.blob();
             downloadBlob(scannedBlob, originalFilename.replace('.pdf', '_scanned.pdf'));
         } catch (e) {
@@ -176,7 +220,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     combineFileInput.addEventListener('change', (e) => {
         combineFiles = Array.from(e.target.files);
-        combineSegments = combineFiles.map((_, i) => ({ origIdx: i, pageSpec: 'all' }));
+        combineSegments = combineFiles.map((f, i) => ({
+            origIdx: i,
+            pageSpec: 'all',
+            fileType: f.type.startsWith('image/') ? 'image' : 'pdf'
+        }));
         renderFileCards();
     });
 
@@ -201,10 +249,16 @@ document.addEventListener('DOMContentLoaded', () => {
         combineFileList.innerHTML = combineSegments.map(({ origIdx, pageSpec }, pos) => {
             const file = combineFiles[origIdx];
             const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+            const isImage = file.type.startsWith('image/');
+            const icon = isImage ? '🖼️' : '📄';
+            const typeTag = isImage
+                ? `<span class="file-type-badge file-type-image">IMAGE</span>`
+                : `<span class="file-type-badge file-type-pdf">PDF</span>`;
             return `
             <div class="file-card" data-pos="${pos}">
                 <div class="file-card-header">
-                    <span class="file-card-name">📄 ${file.name}</span>
+                    <span class="file-card-name">${icon} ${file.name}</span>
+                    ${typeTag}
                     <span class="file-card-size">${sizeMB} MB</span>
                     <div class="reorder-btns">
                         <button type="button" class="reorder-btn" title="Move up"
@@ -213,18 +267,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             onclick="combineMove(${pos}, 1)" ${pos === last ? 'disabled' : ''}>↓</button>
                         <button type="button" class="reorder-btn" title="Duplicate this segment"
                             onclick="combineDuplicate(${pos})">⧉ Dup</button>
-                        <button type="button" class="reorder-btn" title="Preview PDF"
+                        <button type="button" class="reorder-btn" title="Preview"
                             onclick="combinePreview(${origIdx})">👁 Preview</button>
                         <button type="button" class="reorder-btn reorder-btn--danger" title="Remove"
                             onclick="combineRemove(${pos})">✕</button>
                     </div>
                 </div>
+                ${!isImage ? `
                 <div class="page-range-row">
                     <span class="page-range-label">Pages:</span>
                     <input type="text" class="page-range-input" placeholder="all"
                            value="${pageSpec}" title="e.g. 1-3, 5, 7-9">
                     <span class="page-range-hint">e.g. 1-3, 5</span>
-                </div>
+                </div>` : `
+                <div class="page-range-row" style="color:var(--text-muted);font-size:0.85rem;">
+                    Image will be placed as a full page
+                </div>`}
             </div>`;
         }).join('');
     }
@@ -239,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.combineDuplicate = function (pos) {
         saveCurrentSpecs();
-        const copy = { ...combineSegments[pos] };   // shallow copy – same origIdx, same pageSpec
+        const copy = { ...combineSegments[pos] };
         combineSegments.splice(pos + 1, 0, copy);
         renderFileCards();
     };
@@ -278,11 +336,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const fileOrder = combineSegments.map(s => s.origIdx);
         const pageSpecs = combineSegments.map(s => s.pageSpec);
+        const fileTypes = combineFiles.map(f => f.type.startsWith('image/') ? 'image' : 'pdf');
 
         const formData = new FormData();
         combineFiles.forEach(file => formData.append('files', file));
         formData.append('file_order', JSON.stringify(fileOrder));
         formData.append('page_specs', JSON.stringify(pageSpecs));
+        formData.append('file_types', JSON.stringify(fileTypes));
 
         try {
             const res = await fetch('/api/combine', { method: 'POST', body: formData });

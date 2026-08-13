@@ -1,7 +1,7 @@
 :root {
-    --primary: #6366f1;
+    --primary: #056BFC;
     --primary-hover: #4f46e5;
-    --secondary: #ec4899;
+    --secondary: #3FD534;
     --success: #10b981;
     --bg-color: #0f172a;
     --panel-bg: rgba(30, 41, 59, 0.7);
@@ -144,7 +144,7 @@ input[type="text"] {
 }
 .image-file { color: var(--text-main); font-size: 0.9rem; }
 
-.actions { display: flex; justify-content: flex-end; margin-top: 1rem; }
+.actions { display: flex; justify-content: flex-end; gap: 1.5rem; margin-top: 1rem; }
 .btn-primary {
     background: linear-gradient(135deg, var(--primary), var(--secondary)); border: none; color: white;
     padding: 1rem 2rem; border-radius: 12px; font-size: 1.1rem; font-weight: 600; cursor: pointer;
@@ -169,6 +169,12 @@ input[type="text"] {
 }
 .file-card-name { font-weight: 600; font-size: 0.95rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-card-size { font-size: 0.8rem; color: var(--text-muted); margin-right: 0.5rem; }
+.file-type-badge {
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em;
+    padding: 0.15rem 0.5rem; border-radius: 4px; flex-shrink: 0;
+}
+.file-type-pdf   { background: rgba(99,102,241,0.2); color: #a5b4fc; }
+.file-type-image { background: rgba(16,185,129,0.2); color: #6ee7b7; }
 .reorder-btns { display: flex; gap: 0.4rem; }
 .reorder-btn {
     background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
@@ -192,3 +198,23 @@ input[type="text"] {
 .spinner { width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s infinite linear; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .hidden { display: none !important; }
+.btn-remove-row {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #f87171;
+    border-radius: 6px;
+    padding: 0.4rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn-remove-row:hover {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: white;
+}

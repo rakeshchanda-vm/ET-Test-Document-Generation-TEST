@@ -7,6 +7,7 @@ import uvicorn
 from typing import List
 from pdf_manager import replace_text_in_pdf, combine_pdfs
 from scanner_simulator import simulate_scan
+# import traceback
 
 app = FastAPI(title="PDF Text Replacer API")
 
@@ -21,7 +22,7 @@ app.add_middleware(
 @app.post("/api/replace")
 async def replace_pdf_text(
     file: UploadFile = File(...),
-    replacements: str = Form(...) # JSON string
+    replacements: str = Form(...)
 ):
     try:
         rep_dict = json.loads(replacements)
@@ -37,6 +38,7 @@ async def replace_pdf_text(
             }
         )
     except Exception as e:
+        # traceback.print_exc()
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/simulate-scan")
@@ -80,24 +82,32 @@ async def api_simulate_scan(
 @app.post("/api/combine")
 async def api_combine(
     files: List[UploadFile] = File(...),
-    page_specs: str = Form("[]"), 
-    file_order: str = Form("[]")
+    page_specs: str = Form("[]"),
+    file_order: str = Form("[]"),
+    file_types: str = Form("[]")
 ):
     try:
         pdf_bytes_list = []
         for file in files:
-            pdf_bytes = await file.read()
-            pdf_bytes_list.append(pdf_bytes)
-        
-        specs = json.loads(page_specs)
-        order = json.loads(file_order)
+            pdf_bytes_list.append(await file.read())
+
+        specs  = json.loads(page_specs)
+        order  = json.loads(file_order)
+        types  = json.loads(file_types)
 
         if not specs:
             specs = ["all"] * len(pdf_bytes_list)
         if not order:
             order = list(range(len(pdf_bytes_list)))
-            
-        combined_pdf_bytes = combine_pdfs(pdf_bytes_list, page_specs=specs, file_order=order)
+        if not types:
+            types = ["pdf"] * len(pdf_bytes_list)
+
+        combined_pdf_bytes = combine_pdfs(
+            pdf_bytes_list,
+            page_specs=specs,
+            file_order=order,
+            file_types=types
+        )
         
         return Response(
             content=combined_pdf_bytes,
