@@ -19,6 +19,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok"}
+
 @app.post("/api/replace")
 async def replace_pdf_text(
     file: UploadFile = File(...),
@@ -124,4 +128,4 @@ async def api_combine(
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app:app", host="127.0.0.1", port=8004, reload=True)
