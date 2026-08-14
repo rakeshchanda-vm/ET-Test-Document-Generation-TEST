@@ -176,6 +176,7 @@ def image_to_pdf_bytes(image_bytes: bytes) -> bytes:
     
     if img_w > img_h:
         a4_w, a4_h = 842, 595  
+    else:
         a4_w, a4_h = 595, 842  
         
     page = doc.new_page(width=a4_w, height=a4_h)
