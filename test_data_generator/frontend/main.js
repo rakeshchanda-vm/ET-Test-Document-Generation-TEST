@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let editedPdfBlob = null;
     let originalFilename = '';
+    let skippedFiles = [];
 
     // Tab Switching Logic
     const tabBtns = document.querySelectorAll('.tab-btn');
@@ -55,7 +56,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateName() {
         if (fileInput.files.length) {
-            fileName.textContent = fileInput.files[0].name;
+            const count = fileInput.files.length;
+            const skipToScannerBtn = document.getElementById('skip-to-scanner-btn');
+            
+            if (count === 1) {
+                fileName.textContent = fileInput.files[0].name;
+                editorSubmitBtn.disabled = false;
+                editorSubmitBtn.classList.remove('hidden');
+                editorSubmitBtn.style.removeProperty('display');
+                skipToScannerBtn.textContent = 'Skip to Scanner';
+            } else {
+                fileName.textContent = `${count} files selected`;
+                editorSubmitBtn.disabled = true;
+                editorSubmitBtn.classList.add('hidden');
+                editorSubmitBtn.style.setProperty('display', 'none', 'important');
+                skipToScannerBtn.textContent = `Skip to Scanner (${count} files)`;
+            }
+            
             dropZone.style.borderColor = 'var(--primary)';
             successStage.classList.add('hidden');
             editorSubmitBtn.parentElement.classList.remove('hidden');
@@ -119,6 +136,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(errMsg);
             }
             editedPdfBlob = await res.blob();
+            skippedFiles = [];
+            btnDownloadEdited.classList.remove('hidden');
             editorSubmitBtn.parentElement.classList.add('hidden');
 
             const successHeader = successStage.querySelector('.success-header h3');
@@ -147,14 +166,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        originalFilename = fileInput.files[0].name;
-        editedPdfBlob = await fileInput.files[0].arrayBuffer().then(buf => new Blob([buf], { type: 'application/pdf' }));
+        const successHeader = successStage.querySelector('.success-header h3');
+        if (fileInput.files.length === 1) {
+            originalFilename = fileInput.files[0].name;
+            editedPdfBlob = await fileInput.files[0].arrayBuffer().then(buf => new Blob([buf], { type: 'application/pdf' }));
+            skippedFiles = [];
+            btnDownloadEdited.classList.remove('hidden');
+            successHeader.textContent = 'Ready to Convert to Scanned PDF';
+        } else {
+            originalFilename = '';
+            editedPdfBlob = null;
+            skippedFiles = Array.from(fileInput.files);
+            btnDownloadEdited.classList.add('hidden');
+            successHeader.textContent = `Ready to Convert ${skippedFiles.length} files to Scanned PDFs`;
+        }
 
         editorSubmitBtn.parentElement.classList.add('hidden');
         successStage.classList.remove('hidden');
-
-        const successHeader = successStage.querySelector('.success-header h3');
-        successHeader.textContent = 'Ready to Convert to Scanned PDF';
     });
 
     // Slider value updates
@@ -177,36 +205,66 @@ document.addEventListener('DOMContentLoaded', () => {
     // Submit Converter (Add Noise to Replaced PDF)
     scannerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (!editedPdfBlob) return;
+        if (!editedPdfBlob && (!skippedFiles || skippedFiles.length === 0)) {
+            alert('No PDF data to simulate.');
+            return;
+        }
 
         setLoading(converterSubmitBtn, true);
 
-        const formData = new FormData();
-        formData.append('file', editedPdfBlob, originalFilename);
-        formData.append('skew', scannerForm.querySelector('[name="skew"]').checked);
-        formData.append('blur', scannerForm.querySelector('[name="blur"]').checked);
-        formData.append('noise', scannerForm.querySelector('[name="noise"]').checked);
-        formData.append('low_dpi', scannerForm.querySelector('[name="low_dpi"]').checked);
-        formData.append('skew_angle', scannerForm.querySelector('[name="skew_angle"]').value);
-        formData.append('blur_strength', scannerForm.querySelector('[name="blur_strength"]').value);
-        formData.append('noise_intensity', scannerForm.querySelector('[name="noise_intensity"]').value);
+        const skew = scannerForm.querySelector('[name="skew"]').checked;
+        const blur = scannerForm.querySelector('[name="blur"]').checked;
+        const noise = scannerForm.querySelector('[name="noise"]').checked;
+        const low_dpi = scannerForm.querySelector('[name="low_dpi"]').checked;
+        const skew_angle = scannerForm.querySelector('[name="skew_angle"]').value;
+        const blur_strength = scannerForm.querySelector('[name="blur_strength"]').value;
+        const noise_intensity = scannerForm.querySelector('[name="noise_intensity"]').value;
 
+        let overlayFile = null;
         const imgInput = scannerForm.querySelector('.image-file');
         if (scannerForm.querySelector('[name="add_image"]').checked && imgInput.files.length) {
-            formData.append('overlay_image', imgInput.files[0]);
+            overlayFile = imgInput.files[0];
         }
 
-        try {
+        async function runSimulation(blobOrFile, filename) {
+            const formData = new FormData();
+            formData.append('file', blobOrFile, filename);
+            formData.append('skew', skew);
+            formData.append('blur', blur);
+            formData.append('noise', noise);
+            formData.append('low_dpi', low_dpi);
+            formData.append('skew_angle', skew_angle);
+            formData.append('blur_strength', blur_strength);
+            formData.append('noise_intensity', noise_intensity);
+            if (overlayFile) {
+                formData.append('overlay_image', overlayFile);
+            }
+
             const res = await fetch('/api/simulate-scan', { method: 'POST', body: formData });
             if (!res.ok) {
                 let errMsg = `HTTP ${res.status}`;
                 try { const j = await res.json(); errMsg = j.detail || JSON.stringify(j); } catch {}
                 throw new Error(errMsg);
             }
-            const scannedBlob = await res.blob();
-            downloadBlob(scannedBlob, originalFilename.replace('.pdf', '_scanned.pdf'));
-        } catch (e) {
-            alert('Error: ' + e.message);
+            return await res.blob();
+        }
+
+        try {
+            if (skippedFiles && skippedFiles.length > 0) {
+                for (let i = 0; i < skippedFiles.length; i++) {
+                    const file = skippedFiles[i];
+                    setLoading(converterSubmitBtn, true, `Processing ${i + 1}/${skippedFiles.length}...`);
+                    const scannedBlob = await runSimulation(file, file.name);
+                    downloadBlob(scannedBlob, file.name.replace('.pdf', '_scanned.pdf'));
+        
+                    await new Promise(resolve => setTimeout(resolve, 600));
+                }
+            } else if (editedPdfBlob) {
+                const scannedBlob = await runSimulation(editedPdfBlob, originalFilename);
+                downloadBlob(scannedBlob, originalFilename.replace('.pdf', '_scanned.pdf'));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
         } finally {
             setLoading(converterSubmitBtn, false, 'Generate & Download Scanned PDF');
         }
