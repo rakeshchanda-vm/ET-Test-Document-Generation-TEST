@@ -202,6 +202,57 @@ document.addEventListener('DOMContentLoaded', () => {
         else container.classList.add('hidden');
     });
 
+    // Toggle Rotation settings
+    document.querySelector('[name="rotation"]').addEventListener('change', (e) => {
+        const container = document.getElementById('rotation-settings-container');
+        if (e.target.checked) container.classList.remove('hidden');
+        else container.classList.add('hidden');
+    });
+
+    // Add Rotation Rule - Using Event Delegation
+    document.addEventListener('click', (e) => {
+        if (e.target.id === 'add-rotation-rule-btn') {
+            e.preventDefault();
+            e.stopPropagation();
+            const rotationRulesContainer = document.getElementById('rotation-rules');
+            if (!rotationRulesContainer) {
+                console.error('rotation-rules container not found');
+                return;
+            }
+            const rule = document.createElement('div');
+            rule.className = 'rotation-rule';
+            rule.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.75rem; align-items: end; padding: 0.75rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px;';
+            rule.innerHTML = `
+                <div>
+                    <label style="display: block; margin-bottom: 0.4rem; font-size: 0.8rem; color: var(--text-muted);">Pages (e.g., "1,3,5" or "1-3")</label>
+                    <input type="text" class="rotation-pages" placeholder="e.g., 1,2,5 or 1-3,5-7" style="width: 100%; padding: 0.5rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text-main); font-size: 0.85rem;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.4rem; font-size: 0.8rem; color: var(--text-muted);">Angle (degrees)</label>
+                    <input type="number" class="rotation-angle" min="-360" max="360" step="1" value="90" style="width: 100%; padding: 0.5rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text-main); font-size: 0.85rem;">
+                </div>
+                <button type="button" class="btn-remove-rotation" title="Remove rotation rule" style="padding: 0.5rem 0.75rem; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #ef4444; border-radius: 4px; cursor: pointer; font-weight: 500;">✕</button>
+            `;
+            rotationRulesContainer.appendChild(rule);
+            console.log('Rotation rule added');
+        }
+    });
+
+    // Remove Rotation Rule
+    document.getElementById('rotation-rules').addEventListener('click', (e) => {
+        if (e.target.closest('.btn-remove-rotation')) {
+            e.preventDefault();
+            e.stopPropagation();
+            const rule = e.target.closest('.rotation-rule');
+            const allRules = document.querySelectorAll('.rotation-rule');
+            if (allRules.length > 1) {
+                rule.remove();
+            } else {
+                rule.querySelectorAll('input').forEach(input => input.value = input.classList.contains('rotation-angle') ? '90' : '');
+            }
+        }
+    });
+
     // Submit Converter (Add Noise to Replaced PDF)
     scannerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -219,6 +270,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const skew_angle = scannerForm.querySelector('[name="skew_angle"]').value;
         const blur_strength = scannerForm.querySelector('[name="blur_strength"]').value;
         const noise_intensity = scannerForm.querySelector('[name="noise_intensity"]').value;
+        const rotation = scannerForm.querySelector('[name="rotation"]').checked;
+        
+        // Collect all rotation rules
+        const rotationRules = [];
+        if (rotation) {
+            const rules = document.querySelectorAll('.rotation-rule');
+            rules.forEach(rule => {
+                const pages = rule.querySelector('.rotation-pages').value.trim();
+                const angle = rule.querySelector('.rotation-angle').value;
+                if (pages) {
+                    rotationRules.push({ pages, angle: parseFloat(angle) });
+                }
+            });
+        }
+        const rotationRulesJson = JSON.stringify(rotationRules);
 
         let overlayFile = null;
         const imgInput = scannerForm.querySelector('.image-file');
@@ -236,6 +302,8 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('skew_angle', skew_angle);
             formData.append('blur_strength', blur_strength);
             formData.append('noise_intensity', noise_intensity);
+            formData.append('rotation', rotation);
+            formData.append('rotation_rules', rotationRulesJson);
             if (overlayFile) {
                 formData.append('overlay_image', overlayFile);
             }

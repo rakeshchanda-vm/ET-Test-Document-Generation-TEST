@@ -51,7 +51,9 @@ async def api_simulate_scan(
     skew_angle: float = Form(1.5),
     blur_strength: int = Form(5),
     noise_intensity: float = Form(15.0),
-    overlay_image: UploadFile = File(None)
+    overlay_image: UploadFile = File(None),
+    rotation: bool = Form(False),
+    rotation_rules: str = Form("[]")
 ):
     try:
         pdf_bytes = await file.read()
@@ -66,7 +68,9 @@ async def api_simulate_scan(
             skew_angle=skew_angle,
             blur_strength=blur_strength,
             noise_intensity=noise_intensity,
-            overlay_image_bytes=overlay_bytes
+            overlay_image_bytes=overlay_bytes,
+            rotation=rotation,
+            rotation_rules=rotation_rules
         )
         
         return Response(
