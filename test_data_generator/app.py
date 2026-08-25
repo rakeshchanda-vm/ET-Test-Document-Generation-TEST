@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import json
 import uvicorn
+from pathlib import Path
 from typing import List
 from pdf_manager import replace_text_in_pdf, combine_pdfs
 from scanner_simulator import simulate_scan
@@ -125,7 +126,9 @@ async def api_combine(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"
+
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
 if __name__ == "__main__":
     uvicorn.run("app:app", host="127.0.0.1", port=8004, reload=True)
