@@ -500,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function downloadBlob(blob, filename) {
+        function downloadBlob(blob, filename) {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -511,3 +511,267 @@ document.addEventListener('DOMContentLoaded', () => {
         window.URL.revokeObjectURL(url);
     }
 });
+
+/* ── AI Generator Tab ─────────────────────────────────────────────────── */
+(function initAITab() {
+    let aiDocTypes = [];
+    let aiPackets = [];
+    let aiScenarios = {};
+    let selectedDocId = null;
+    let selectedScenario = 'general';
+    let activeMode = 'generate';
+    let referenceFile = null;
+    let resultBlob = null;
+    let resultFilename = '';
+
+    const grid = document.getElementById('ai-doc-type-grid');
+    const scenarioPills = document.getElementById('ai-scenario-pills');
+    const generateBtn = document.getElementById('ai-generate-btn');
+    const refSection = document.getElementById('ai-reference-section');
+    const refDrop = document.getElementById('ai-ref-drop');
+    const refFileInput = document.getElementById('ai-ref-file');
+    const refFilename = document.getElementById('ai-ref-filename');
+    const analyzeBtn = document.getElementById('ai-analyze-btn');
+    const analysisResult = document.getElementById('ai-analysis-result');
+    const progressWrap = document.getElementById('ai-progress-bar-wrap');
+    const progressFill = document.getElementById('ai-progress-fill');
+    const progressLabel = document.getElementById('ai-progress-label');
+    const resultArea = document.getElementById('ai-result-area');
+    const resultLabel = document.getElementById('ai-result-label');
+    const downloadBtn = document.getElementById('ai-download-btn');
+    const statusEl = document.getElementById('ai-status-indicator');
+    const countInput = document.getElementById('ai-count');
+    const seedInput = document.getElementById('ai-seed');
+    const docSectionLabel = document.getElementById('ai-doc-section-label');
+
+    fetch('/api/ai-doc-types')
+        .then(r => r.json())
+        .then(data => {
+            aiDocTypes = data.document_types || [];
+            aiPackets = data.packets || [];
+            aiScenarios = data.scenarios || {};
+            renderDocCards();
+            renderScenarioPills();
+        })
+        .catch(() => {
+            grid.innerHTML = '<div class="ai-card-loading" style="color:#f87171;">Failed to load. Is the server running?</div>';
+        });
+
+    function renderDocCards() {
+        const isPacket = activeMode === 'packet';
+        const items = isPacket ? aiPackets : aiDocTypes;
+        docSectionLabel.textContent = isPacket ? 'Select Packet Type' : 'Select Document Type';
+        grid.innerHTML = items.map(item => `
+            <div class="ai-doc-card${selectedDocId === item.id ? ' selected' : ''}"
+                 data-id="${item.id}" title="${item.description || item.label}">
+                <span class="ai-card-icon">${item.icon}</span>
+                <span class="ai-card-label">${item.label}</span>
+                ${isPacket ? '<span class="ai-card-badge ai-card-badge-packet">PKT</span>' : ''}
+            </div>`).join('');
+        grid.querySelectorAll('.ai-doc-card').forEach(card => {
+            card.addEventListener('click', () => selectDoc(card.dataset.id));
+        });
+    }
+
+    function renderScenarioPills() {
+        scenarioPills.innerHTML = Object.entries(aiScenarios).map(([id, label]) => `
+            <button class="ai-scenario-pill${selectedScenario === id ? ' active' : ''}" data-sc="${id}">
+                ${label}
+            </button>`).join('');
+        scenarioPills.querySelectorAll('.ai-scenario-pill').forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectedScenario = btn.dataset.sc;
+                renderScenarioPills();
+            });
+        });
+    }
+
+    function selectDoc(id) {
+        selectedDocId = id;
+        renderDocCards();
+        updateGenerateBtn();
+    }
+
+    function updateGenerateBtn() {
+        generateBtn.disabled = !selectedDocId;
+        const isPacket = activeMode === 'packet';
+        generateBtn.querySelector('.btn-text').textContent = isPacket
+            ? '📦 Build Packet'
+            : '✨ Generate Document';
+    }
+
+    document.getElementById('ai-mode-pills').addEventListener('click', e => {
+        const pill = e.target.closest('.ai-mode-pill');
+        if (!pill) return;
+        document.querySelectorAll('.ai-mode-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        activeMode = pill.dataset.mode;
+        selectedDocId = null;
+        const needsRef = activeMode === 'recreate';
+        refSection.classList.toggle('hidden', !needsRef);
+        renderDocCards();
+        updateGenerateBtn();
+        setStatus('idle', 'Ready');
+        resultArea.classList.add('hidden');
+        progressWrap.classList.add('hidden');
+    });
+
+    document.getElementById('ai-count-minus').addEventListener('click', () => {
+        const v = parseInt(countInput.value, 10);
+        if (v > 1) countInput.value = v - 1;
+    });
+    document.getElementById('ai-count-plus').addEventListener('click', () => {
+        const v = parseInt(countInput.value, 10);
+        if (v < 10) countInput.value = v + 1;
+    });
+
+    refDrop.addEventListener('click', () => refFileInput.click());
+    refFileInput.addEventListener('change', () => {
+        if (refFileInput.files.length) {
+            referenceFile = refFileInput.files[0];
+            refFilename.textContent = `📎 ${referenceFile.name}`;
+            refDrop.classList.add('has-file');
+            analyzeBtn.classList.remove('hidden');
+            analysisResult.classList.add('hidden');
+            updateGenerateBtn();
+        }
+    });
+    ['dragenter', 'dragover'].forEach(ev => refDrop.addEventListener(ev, e => { e.preventDefault(); refDrop.classList.add('dragover'); }));
+    ['dragleave', 'drop'].forEach(ev => refDrop.addEventListener(ev, e => { e.preventDefault(); refDrop.classList.remove('dragover'); }));
+    refDrop.addEventListener('drop', e => {
+        if (e.dataTransfer.files.length) {
+            refFileInput.files = e.dataTransfer.files;
+            refFileInput.dispatchEvent(new Event('change'));
+        }
+    });
+
+    analyzeBtn.addEventListener('click', async () => {
+        if (!referenceFile) return;
+        analyzeBtn.textContent = '⏳ Analyzing...';
+        analyzeBtn.disabled = true;
+        const fd = new FormData();
+        fd.append('file', referenceFile);
+        try {
+            const r = await fetch('/api/ai-analyze-reference', { method: 'POST', body: fd });
+            const data = await r.json();
+            analysisResult.textContent = JSON.stringify(data, null, 2);
+            analysisResult.classList.remove('hidden');
+        } catch {
+            analysisResult.textContent = 'Analysis failed.';
+            analysisResult.classList.remove('hidden');
+        } finally {
+            analyzeBtn.textContent = '🔍 Analyze Reference';
+            analyzeBtn.disabled = false;
+        }
+    });
+
+    function setStatus(type, text) {
+        statusEl.className = `ai-status-${type}`;
+        statusEl.innerHTML = `<span class="ai-status-dot"></span><span class="ai-status-text">${text}</span>`;
+    }
+
+    function setProgress(pct, label) {
+        progressFill.style.width = `${pct}%`;
+        progressLabel.textContent = label;
+    }
+
+    let progressTimer = null;
+    function startProgressSimulation() {
+        progressWrap.classList.remove('hidden');
+        let pct = 0;
+        const steps = [
+            [5, 'Initializing workspace agent...'],
+            [15, 'Loading skill for document type...'],
+            [30, 'Generating synthetic data...'],
+            [55, 'Rendering document template...'],
+            [80, 'Converting to PDF...'],
+            [92, 'Finalizing...'],
+        ];
+        let si = 0;
+        progressTimer = setInterval(() => {
+            if (si < steps.length) {
+                setProgress(steps[si][0], steps[si][1]);
+                si++;
+            } else {
+                clearInterval(progressTimer);
+            }
+        }, 1800);
+    }
+
+    function stopProgressSimulation(success) {
+        clearInterval(progressTimer);
+        setProgress(100, success ? 'Done!' : 'Failed.');
+        setTimeout(() => { progressWrap.classList.add('hidden'); setProgress(0, ''); }, 1200);
+    }
+
+    generateBtn.addEventListener('click', async () => {
+        if (!selectedDocId) return;
+
+        setStatus('running', 'Running agent...');
+        const span = generateBtn.querySelector('.btn-text');
+        const spin = generateBtn.querySelector('.spinner');
+        span.textContent = 'Processing...';
+        spin.classList.remove('hidden');
+        generateBtn.disabled = true;
+        resultArea.classList.add('hidden');
+
+        startProgressSimulation();
+
+        const fd = new FormData();
+        fd.append('doc_type', selectedDocId);
+        fd.append('mode', activeMode === 'packet' ? 'packet' : activeMode);
+        fd.append('scenario', selectedScenario);
+        fd.append('count', countInput.value);
+        if (seedInput.value) fd.append('seed', seedInput.value);
+        if (referenceFile && activeMode === 'recreate') {
+            fd.append('reference_file', referenceFile);
+        }
+
+        try {
+            const r = await fetch('/api/ai-generate', { method: 'POST', body: fd });
+            if (!r.ok) {
+                const err = await r.json().catch(() => ({ detail: `HTTP ${r.status}` }));
+                throw new Error(err.detail || 'Generation failed');
+            }
+
+            const isZip = r.headers.get('Content-Type')?.includes('zip');
+            resultBlob = await r.blob();
+            const disp = r.headers.get('Content-Disposition') || '';
+            const match = disp.match(/filename=(.+)/);
+            resultFilename = match ? match[1].replace(/"/g, '') : (isZip ? 'packet.zip' : 'document.pdf');
+
+            stopProgressSimulation(true);
+            setStatus('done', 'Complete');
+            resultLabel.textContent = isZip
+                ? `📦 Packet generated (${(resultBlob.size / 1024).toFixed(1)} KB ZIP)`
+                : `📄 Document generated (${(resultBlob.size / 1024).toFixed(1)} KB PDF)`;
+            resultArea.classList.remove('hidden');
+
+            if (document.getElementById('ai-pipe-scanner').checked && !isZip) {
+                const scannerTab = document.querySelector('[data-target="generator-tab"]');
+                if (scannerTab) scannerTab.click();
+            }
+        } catch (err) {
+            stopProgressSimulation(false);
+            setStatus('error', 'Error');
+            alert('Generation error: ' + err.message);
+        } finally {
+            span.textContent = activeMode === 'packet' ? '📦 Build Packet' : '✨ Generate Document';
+            spin.classList.add('hidden');
+            generateBtn.disabled = false;
+        }
+    });
+
+    downloadBtn.addEventListener('click', () => {
+        if (resultBlob) downloadBlob(resultBlob, resultFilename);
+    });
+
+    function downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+    }
+})();
+
